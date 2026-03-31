@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSJ Cusco - Localizador Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        .lista-juzgados { display: none; }
+        .lista-juzgados.active { display: block; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        #qrcode img { margin: 0 auto; border: 8px solid white; border-radius: 8px; shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);}
+    </style>
+</head>
+<body class="bg-slate-100 h-screen flex flex-col overflow-hidden font-sans">
+
+    <header class="bg-indigo-950 text-white p-4 shadow-xl flex justify-between items-center z-50">
+        <div class="flex items-center gap-4">
+            <div class="bg-blue-600 px-3 py-1 rounded font-black text-xl italic shadow-lg">CSJ</div>
+            <div>
+                <h1 class="text-sm font-bold tracking-widest uppercase">Cusco - Localizador Judicial</h1>
+                <p id="stats" class="text-[10px] text-blue-300 font-bold uppercase tracking-tighter"></p>
+            </div>
+        </div>
+        
+        <div class="flex gap-2">
+            <button onclick="exportarDatos()" class="hidden md:block bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-xs font-bold transition-all shadow-lg">💾 EXPORTAR</button>
+            <button onclick="toggleAdmin()" id="btnAdmin" class="bg-slate-700 hover:bg-amber-600 text-white px-3 py-2 rounded-lg text-xs font-bold transition-all">⚙️ ADMIN</button>
+            <button onclick="resetearBase()" class="bg-red-900 text-white p-2 rounded-lg text-xs" title="Resetear Datos">🔄</button>
+        </div>
+    </header>
+
+    <main class="flex flex-1 overflow-hidden">
+        <div class="w-full lg:w-4/12 bg-white flex flex-col border-r shadow-2xl">
+            <div class="p-4 bg-slate-50 border-b">
+                <input type="text" id="searchInput" onkeyup="filtrar()" placeholder="🔎 Buscar por provincia, distrito u órgano..." 
+                    class="w-full p-3 rounded-xl border-2 border-slate-200 focus:border-blue-500 outline-none transition-all text-sm">
+            </div>
+            <div id="contenedorProvincias" class="flex-1 overflow-y-auto custom-scroll p-4 space-y-3"></div>
+        </div>
+
+        <div class="hidden lg:flex flex-1 p-6 bg-slate-200 flex-col gap-6 overflow-y-auto custom-scroll">
+            <div class="w-full h-3/5 bg-white rounded-3xl shadow-2xl overflow-hidden relative min-h-[400px]">
+                <iframe id="mapFrame" class="w-full h-full border-0" src="about:blank"></iframe>
+                <div id="mapMsg" class="absolute inset-0 flex items-center justify-center bg-slate-50 text-slate-400 font-bold">
+                    SELECCIONE UNA SEDE PARA COMENZAR
+                </div>
+            </div>
+
+            <div id="infoCard" class="hidden grid grid-cols-3 gap-6 bg-white p-8 rounded-3xl shadow-2xl border border-white">
+                <div class="col-span-2 space-y-4">
+                    <h2 id="infoTitulo" class="text-2xl font-black text-slate-800 leading-tight uppercase"></h2>
+                    <div class="flex items-center gap-2 text-blue-600 font-bold text-sm">
+                        <span id="infoUbicacion"></span>
+                    </div>
+                    <p id="infoDir" class="text-slate-500 italic text-sm"></p>
+                    
+                    <div class="pt-4 flex gap-4">
+                        <a id="btnComoLlegar" target="_blank" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-4 rounded-2xl font-bold flex items-center gap-2 transition-all shadow-lg hover:scale-105">
+                            🚗 CÓMO LLEGAR (GPS)
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="flex flex-col items-center justify-center bg-slate-50 rounded-2xl p-4 border border-slate-100 text-center">
+                    <div id="qrcode" class="mb-2 shadow-sm"></div>
+                    <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Escanea para compartir ubicación</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div id="modalAdmin" class="fixed inset-0 bg-slate-900/90 backdrop-blur flex items-center justify-center p-4 z-[100] hidden">
+        <div class="bg-white w-full max-w-md rounded-3xl p-8 shadow-2xl">
+            <h2 class="text-xl font-black mb-6 text-slate-800 border-b pb-4">Actualizar Sede Judicial</h2>
+            <div class="space-y-4">
+                <div class="group">
+                    <label class="text-[10px] font-bold text-slate-400 uppercase">Nombre del Órgano</label>
+                    <input type="text" id="editO" class="w-full p-3 border-2 rounded-xl outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase">Dirección Física</label>
+                    <input type="text" id="editDir" class="w-full p-3 border-2 rounded-xl outline-none focus:border-blue-500">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-400 uppercase">Latitud</label>
+                        <input type="text" id="editLat" placeholder="-13.52..." class="w-full p-3 border-2 rounded-xl outline-none focus:border-blue-500 text-xs">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-400 uppercase">Longitud</label>
+                        <input type="text" id="editLng" placeholder="-71.96..." class="w-full p-3 border-2 rounded-xl outline-none focus:border-blue-500 text-xs">
+                    </div>
+                </div>
+                <div class="flex gap-3 pt-6">
+                    <button onclick="guardarAdmin()" class="flex-1 bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-indigo-700 transition-all">GUARDAR CAMBIOS</button>
+                    <button onclick="cerrarModal()" class="flex-1 bg-slate-100 text-slate-600 py-4 rounded-2xl font-bold">DESCARTAR</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // PEGA AQUÍ TUS 196 REGISTROS DE EXCEL
+        const datosBase = [
+         {p:"ACOMAYO", d:"ACOMAYO", o:"1° JUZGADO UNIPERSONAL - Sede Acomayo", dir:"Av. Francisco Bolognesi S/N - Acomayo", lat:"-13.9193725", lng:"-71.6851869"},
+{p:"ACOMAYO", d:"ACOMAYO", o:"1° JUZ. DE INVES. PREPARATORIA - Sede Acomayo", dir:"Av. Francisco Bolognesi S/N - Acomayo", lat:"-13.9193726", lng:"-71.6851870"},
+{p:"ACOMAYO", d:"ACOMAYO", o:"JUZG. INV. PREP. (AD. FUNC. J. MIXTO) - SEDE ACOMAYO", dir:"Av. Francisco Bolognesi S/N - Acomayo", lat:"-13.9193727", lng:"-71.6851871"},
+{p:"ACOMAYO", d:"ACOMAYO", o:"1° JUZGADO MIXTO - Sede Acomayo", dir:"Av. Francisco Bolognesi S/N - Acomayo", lat:"-13.9193728", lng:"-71.6851872"},
+{p:"ACOMAYO", d:"ACOMAYO", o:"1° JUZGADO DE PAZ LETRADO - Sede Acomayo", dir:"Av. Francisco Bolognesi S/N - Acomayo", lat:"-13.9193729", lng:"-71.6851873"},
+{p:"ACOMAYO", d:"POMACANCHI", o:"Juzgado de Paz Letrado", dir:"Plaza de Armas Centro Cívico - Pomacanchi", lat:"-14.0351886", lng:"-71.5712595"},
+{p:"ANTA", d:"ANTA", o:"JUZGADO CIVIL - SEDE ANTA", dir:"Urb. Nueva Anta Q-1 Plaza de armas Izcuchaca", lat:"-13.4649236", lng:"-72.1427917"},
+{p:"ANTA", d:"ANTA", o:"JUZGADO DE FAMILIA - SEDE ANTA", dir:"Urb. Nueva Anta Q-1 Plaza de armas Izcuchaca", lat:"-13.4649237", lng:"-72.1427918"},
+{p:"ANTA", d:"ANTA", o:"1° JUZGADO UNIPERSONAL - Sede Anta", dir:"Urb. Nueva Anta Q-1 Plaza de armas Izcuchaca", lat:"-13.4649238", lng:"-72.1427919"},
+{p:"ANTA", d:"ANTA", o:"1° JUZ. DE INVES. PREPARATORIA - Sede Anta", dir:"Urb. Nueva Anta Q-1 Plaza de armas Izcuchaca", lat:"-13.4649239", lng:"-72.1427920"},
+{p:"ANTA", d:"ANTA", o:"1° JUZGADO DE PAZ LETRADO - Sede Anta", dir:"Urb. Nueva Anta Q-1 Plaza de armas Izcuchaca", lat:"-13.4649240", lng:"-72.1427921"},
+{p:"CALCA", d:"CALCA", o:"Juzgado Civil / J. Penal Unipersonal / J. de la Investigación Preparatoria / J. de Paz Letrado", dir:"Cal. San Martin S/N - Calca", lat:"-13.3202905", lng:"-71.9574163"},
+{p:"CALCA", d:"CALCA", o:"JUZGADO CIVIL - SEDE CALCA", dir:"Cal. San Martin S/N - Calca", lat:"-13.3202906", lng:"-71.9574164"},
+{p:"CALCA", d:"CALCA", o:"JUZGADO UNIPERSONAL DE CALCA", dir:"Cal. San Martin S/N - Calca", lat:"-13.3202906", lng:"-71.9574164"},
+{p:"CALCA", d:"CALCA", o:"JUZGADO PENAL LIQUIDADOR DE CALCA", dir:"Cal. San Martin S/N - Calca", lat:"-13.3202906", lng:"-71.9574164"},
+{p:"CALCA", d:"CALCA", o:"1° JUZ. DE INVES. PREPARATORIA - Sede Calca", dir:"Cal. San Martin S/N - Calca", lat:"-13.3202906", lng:"-71.9574164"},
+{p:"CALCA", d:"CALCA", o:"JUZGADO DE PAZ LETRADO - CALCA", dir:"Cal. San Martin S/N - Calca", lat:"-13.3202910", lng:"-71.9574168"},
+{p:"CALCA", d:"YANATILE", o:"1° JUZ. DE INVES. PREPARATORIA - Sede Quebrada", dir:"Av. Calca S/N esquina con Jr. Lares", lat:"-12.680804", lng:"-72.2782231"},
+{p:"CALCA", d:"YANATILE", o:"1° JUZGADO DE PAZ LETRADO - Sede Quebrada", dir:"Av. Calca S/N esquina con Jr. Lares", lat:"-12.680804", lng:"-72.2782231"},
+{p:"CANAS", d:"YANAOCA", o:"JUZGADO PENAL UNIPERSONAL - ITINERANTE A CANAS", dir:"Centro civico Plaza de armas S/N", lat:"-14.216985", lng:"-71.4331397"},
+{p:"CANAS", d:"YANAOCA", o:"1° JUZ. DE INVES. PREPARATORIA - SEDE CANAS YANAOCA", dir:"Centro civico Plaza de armas S/N", lat:"-14.216985", lng:"-71.4331397"},
+{p:"CANAS", d:"YANAOCA", o:"1° JUZGADO MIXTO - SEDE CANAS YANAOCA", dir:"Centro civico Plaza de armas S/N", lat:"-14.216985", lng:"-71.4331397"},
+{p:"CANAS", d:"YANAOCA", o:"1° JUZGADO DE PAZ LETRADO - SEDE CANAS YANAOCA", dir:"Centro civico Plaza de armas S/N", lat:"-14.216985", lng:"-71.4331397"},
+{p:"CANCHIS", d:"SICUANI", o:"1° SALA MIXTA - Sede Sicuani", dir:"Av. San Martín S/N - Tablada San Felipe", lat:"-14.263171", lng:"-71.224305"},
+{p:"CANCHIS", d:"SICUANI", o:"1° SALA PENAL DE APELACIONES - Sede Sicuani", dir:"Av. San Martín S/N - Tablada San Felipe", lat:"-14.263171", lng:"-71.224305"},
+{p:"CANCHIS", d:"SICUANI", o:"1° JUZGADO CIVIL - SEDE SICUANI", dir:"Av. San Martín S/N - Tablada San Felipe", lat:"-14.263171", lng:"-71.224305"},
+{p:"CANCHIS", d:"SICUANI", o:"2° JUZGADO CIVIL - SEDE SICUANI", dir:"Av. San Martín S/N - Tablada San Felipe", lat:"-14.263171", lng:"-71.224305"},
+{p:"CANCHIS", d:"SICUANI", o:"JUZGADO DE FAMILIA - SEDE SICUANI", dir:"Av. San Martín S/N - Tablada San Felipe", lat:"-14.263171", lng:"-71.224305"},
+{p:"CANCHIS", d:"SICUANI", o:"1° JUZGADO UNIPERSONAL - Sede Sicuani", dir:"Av. San Martín S/N - Tablada San Felipe", lat:"-14.263171", lng:"-71.224305"},
+{p:"CANCHIS", d:"SICUANI", o:"1° JUZ. DE INVES. PREPARATORIA - Sede Sicuani", dir:"Av. San Martín S/N - Tablada San Felipe", lat:"-14.263171", lng:"-71.224305"},
+{p:"CANCHIS", d:"SICUANI", o:"2° JUZG. INVEST. PREPARAT. VIOL.C.MUJER E IGF-SEDE SICUANI", dir:"Av. San Martín S/N - Tablada San Felipe", lat:"-14.263171", lng:"-71.224305"},
+{p:"CANCHIS", d:"SICUANI", o:"JUZGADO DE FAMILIA SUBESP. EN VIOLENCIA CONTRA LA MUJER IGF", dir:"Av. San Martín S/N - Tablada San Felipe", lat:"-14.263171", lng:"-71.224305"},
+{p:"CANCHIS", d:"SICUANI", o:"JUZGADO PENAL LIQUIDADOR (AD. FUNC. 2° J.CIVIL)-SEDE SICUANI", dir:"Av. San Martín S/N - Tablada San Felipe", lat:"-14.263171", lng:"-71.224305"},
+{p:"CANCHIS", d:"SICUANI", o:"2° JUZGADO DE PAZ LETRADO - Sede Sicuani", dir:"Av. San Martín S/N - Tablada San Felipe", lat:"-14.263171", lng:"-71.224305"},
+{p:"CANCHIS", d:"SICUANI", o:"JUZGADO DE PAZ LETRADO CAMANTI - ITINERA A SICUANI", dir:"Av. San Martín S/N - Tablada San Felipe", lat:"-14.263171", lng:"-71.224305"},
+{p:"CANCHIS", d:"TINTA", o:"Juzgado de Paz Letrado - Tinta", dir:"Plaza de Armas S/N Tinta", lat:"-14.145283", lng:"-71.4079247"},
+{p:"CHUMBIVILCAS", d:"SANTO TOMAS", o:"Juzgado Mixto / J. Penal Unipersonal / J. Familia / J. Paz Letrado", dir:"Calle 28 de Julio Lote 35 Mz. C-3 Santo Tomas", lat:"-14.452155", lng:"-72.0832777"},
+{p:"CHUMBIVILCAS", d:"SANTO TOMAS", o:"JUZGADO DE FAMILIA - SEDE SANTO TOMÁS", dir:"Calle 28 de Julio Lote 35 Mz. C-3 Santo Tomas", lat:"-14.452155", lng:"-72.0832777"},
+{p:"CHUMBIVILCAS", d:"SANTO TOMAS", o:"JUZGADO PENAL UNIPERSONAL - SEDE SANTO TOMÁS", dir:"Calle 28 de Julio Lote 35 Mz. C-3 Santo Tomas", lat:"-14.452155", lng:"-72.0832777"},
+{p:"CHUMBIVILCAS", d:"SANTO TOMAS", o:"1° JUZGADO PENAL LIQUIDADOR - Sede Santo Tomás", dir:"Calle 28 de Julio Lote 35 Mz. C-3 Santo Tomas", lat:"-14.452155", lng:"-72.0832777"},
+{p:"CHUMBIVILCAS", d:"SANTO TOMAS", o:"JUZGADO DE LA INVESTIGACION PREPARATORIA - SEDE SANTO TOMAS", dir:"Calle 28 de Julio Lote 35 Mz. C-3 Santo Tomas", lat:"-14.452155", lng:"-72.0832777"},
+{p:"CHUMBIVILCAS", d:"SANTO TOMAS", o:"1° JUZGADO MIXTO - Sede Santo Tomás", dir:"Calle 28 de Julio Lote 35 Mz. C-3 Santo Tomas", lat:"-14.452155", lng:"-72.0832777"},
+{p:"CHUMBIVILCAS", d:"SANTO TOMAS", o:"1° JUZGADO DE PAZ LETRADO - Sede Santo Tomás", dir:"Calle 28 de Julio Lote 35 Mz. C-3 Santo Tomas", lat:"-14.452155", lng:"-72.0832777"},
+{p:"CHUMBIVILCAS", d:"LIVITACA", o:"Juzgado de Paz Letrado - Livitaca", dir:"Calle Concepción S/N - Ex local albergue municipal", lat:"-14.313908", lng:"-71.6892967"},
+{p:"CUSCO", d:"CUSCO", o:"2° SALA LABORAL", dir:"Av. El Sol 239", lat:"-13.5187384", lng:"-71.9781067"},
+{p:"CUSCO", d:"CUSCO", o:"1° SALA LABORAL - SEDE CENTRAL", dir:"Av. El Sol 239", lat:"-13.5187385", lng:"-71.9781068"},
+{p:"CUSCO", d:"CUSCO", o:"SALA CIVIL(EX 1°) - SEDE CENTRAL", dir:"Av. El Sol 239", lat:"-13.5187386", lng:"-71.9781069"},
+{p:"CUSCO", d:"CUSCO", o:"1° SALA DE APELACIONES - SEDE CENTRAL", dir:"Av. El Sol 239", lat:"-13.5187387", lng:"-71.9781070"},
+{p:"CUSCO", d:"CUSCO", o:"2° SALA PENAL DE APELACIONES - Sede Central", dir:"Av. El Sol 239", lat:"-13.5187388", lng:"-71.9781071"},
+{p:"CUSCO", d:"CUSCO", o:"1° SALA PENAL DE APELACION (AD.FUNC.LIQUIDADOR) - SEDE", dir:"Av. El Sol 239", lat:"-13.5187389", lng:"-71.9781072"},
+{p:"CUSCO", d:"CUSCO", o:"2° SALA PENAL DE APELACION (AD.FUNC.LIQUIDADOR) - SEDE", dir:"Av. El Sol 239", lat:"-13.5187390", lng:"-71.9781073"},
+{p:"CUSCO", d:"CUSCO", o:"SALA PENAL APELAC. TRANSITORIA", dir:"Av. El Sol 239", lat:"-13.5187391", lng:"-71.9781074"},
+{p:"CUSCO", d:"CUSCO", o:"2º SALA PENAL DE APELACIONES - CORRUP. FUNC. - SEDE CENTRAL", dir:"Av. El Sol 239", lat:"-13.5187392", lng:"-71.9781075"},
+{p:"CUSCO", d:"CUSCO", o:"5°JUZGADO CIVIL-SEDE CENTRAL", dir:"Av. El Sol 239", lat:"-13.5187393", lng:"-71.9781076"},
+{p:"CUSCO", d:"CUSCO", o:"1° JUZGADO CIVIL - Sede Central", dir:"Av. El Sol 239", lat:"-13.5187394", lng:"-71.9781077"},
+{p:"CUSCO", d:"CUSCO", o:"2° JUZGADO CIVIL - Sede Central", dir:"Av. El Sol 239", lat:"-13.5187395", lng:"-71.9781078"},
+{p:"CUSCO", d:"CUSCO", o:"3° JUZGADO CIVIL - Sede Central", dir:"Av. El Sol 239", lat:"-13.5187396", lng:"-71.9781079"},
+{p:"CUSCO", d:"CUSCO", o:"4° JUZGADO CIVIL - Sede Central", dir:"Av. El Sol 239", lat:"-13.5187397", lng:"-71.9781080"},
+{p:"CUSCO", d:"CUSCO", o:"6° JUZGADO CIVIL - SEDE CENTRAL", dir:"Av. El Sol 239", lat:"-13.5187398", lng:"-71.9781081"},
+{p:"CUSCO", d:"CUSCO", o:"1° JUZG. UNIPERSONAL - SEDE CENTRAL", dir:"Av. El Sol 239", lat:"-13.5187399", lng:"-71.9781082"},
+{p:"CUSCO", d:"CUSCO", o:"2° JUZ. INVES. PREP. - SEDE CENTRAL", dir:"Av. El Sol 239", lat:"-13.5187400", lng:"-71.9781083"},
+{p:"CUSCO", d:"CUSCO", o:"3° JUZGADO PENAL UNIPERSONAL-SEDE CUSCO", dir:"Av. El Sol 239", lat:"-13.5187401", lng:"-71.9781084"},
+{p:"CUSCO", d:"CUSCO", o:"2° JUZ. PENAL UNIPERSONAL - Sede Central", dir:"Av. El Sol 239", lat:"-13.5187402", lng:"-71.9781085"},
+{p:"CUSCO", d:"CUSCO", o:"7° JUZGADO INV. PREPARATORIA - SEDE CUSCO", dir:"Av. El Sol 239", lat:"-13.5187403", lng:"-71.9781086"},
+{p:"CUSCO", d:"CUSCO", o:"5º JUZGADO PENAL UNIPERSONAL - SEDE CENTRAL", dir:"Av. El Sol 239", lat:"-13.5187404", lng:"-71.9781087"},
+{p:"CUSCO", d:"CUSCO", o:"1° JUZ. DE INVES. PREPARATORIA - Sede Central", dir:"Av. El Sol 239", lat:"-13.5187405", lng:"-71.9781088"},
+{p:"CUSCO", d:"CUSCO", o:"3° JUZ. DE INVES. PREPARATORIA - Sede Central", dir:"Av. El Sol 239", lat:"-13.5187406", lng:"-71.9781089"},
+{p:"CUSCO", d:"CUSCO", o:"4° JUZ. DE INVES. PREPARATORIA - Sede Central", dir:"Av. El Sol 239", lat:"-13.5187407", lng:"-71.9781090"},
+{p:"CUSCO", d:"CUSCO", o:"5° JUZ. DE INVES. PREPARATORIA - Sede Central", dir:"Av. El Sol 239", lat:"-13.5187408", lng:"-71.9781091"},
+{p:"CUSCO", d:"CUSCO", o:"6° JUZ. DE INVES. PREPARATORIA - Sede Central", dir:"Av. El Sol 239", lat:"-13.5187409", lng:"-71.9781092"},
+{p:"CUSCO", d:"CUSCO", o:"JUZG INV. PREP. DELITOS AMBIENTALES - SEDE CENTRAL", dir:"Av. El Sol 239", lat:"-13.5187410", lng:"-71.9781093"},
+{p:"CUSCO", d:"CUSCO", o:"2°JUZG PENAL UNIP DELITOS AMBIENTALES - SEDE CENTRAL", dir:"Av. El Sol 239", lat:"-13.5187411", lng:"-71.9781094"},
+{p:"CUSCO", d:"CUSCO", o:"5°JUZG PENAL UNIP DELITOS AMBIENTALES - SEDE CENTRAL", dir:"Av. El Sol 239", lat:"-13.5187412", lng:"-71.9781095"},
+{p:"CUSCO", d:"CUSCO", o:"JUZGADO PENAL COLEGIADO SUPRAPROVINCIAL - SEDE CENTRAL", dir:"Av. El Sol 239", lat:"-13.5187413", lng:"-71.9781096"},
+{p:"CUSCO", d:"CUSCO", o:"1° JUZGADO PENAL UNIPERSONAL TRANSITORIO - SEDE CENTRAL", dir:"Av. El Sol 239", lat:"-13.5187414", lng:"-71.9781097"},
+{p:"CUSCO", d:"CUSCO", o:"JUZGADO PENAL COLEGIADO SUPRAPROVINCIAL A - SEDE CENTRAL", dir:"Av. El Sol 239", lat:"-13.5187415", lng:"-71.9781098"},
+{p:"CUSCO", d:"CUSCO", o:"JUZGADO PENAL COLEGIADO DELITOS AMBIENTALES - SEDE CENTRAL", dir:"Av. El Sol 239", lat:"-13.5187416", lng:"-71.9781099"},
+{p:"CUSCO", d:"CUSCO", o:"JUZGADO PENAL COLEG. SUPRAP. - CORRUP. FUNC. - SEDE CENTRAL", dir:"Av. El Sol 239", lat:"-13.5187417", lng:"-71.9781100"},
+{p:"CUSCO", d:"SANTIAGO", o:"8° JUZG. INVEST. PREPARAT. ESP. DELITOS CORRUP. FUNCIONARIOS", dir:"Av. Agustin Gamarra A-8 Urb. Primavera", lat:"-13.5305985", lng:"-71.9736861"},
+{p:"CUSCO", d:"SANTIAGO", o:"JUZGADO INV. PREPARATORIA (CORRUPCIÓN FUNC.)", dir:"Av. Agustin Gamarra A-8 Urb. Primavera", lat:"-13.5305986", lng:"-71.9736862"},
+{p:"CUSCO", d:"SANTIAGO", o:"JUZGADO PENAL LIQUIDADOR (AD. FUNC. EXT. DOMINIO)-SEDE WANCHAQ", dir:"Av. Agustin Gamarra A-8 Urb. Primavera", lat:"-13.5305987", lng:"-71.9736863"},
+{p:"CUSCO", d:"SANTIAGO", o:"JUZG. PENAL UNIPERS. DESCAR. ESP. DELIT. CORRUP. FUNC.-CUSCO", dir:"Av. Agustin Gamarra A-8 Urb. Primavera", lat:"-13.5305988", lng:"-71.9736864"},
+{p:"CUSCO", d:"SANTIAGO", o:"JUZGADO TRANSITORIO ESPEC. EXTINCIÓN DE DOMINIO-SEDE WANCHAQ", dir:"Av. Agustin Gamarra A-8 Urb. Primavera", lat:"-13.5305989", lng:"-71.9736865"},
+{p:"CUSCO", d:"SANTIAGO", o:"2° JUZGADO PENAL COLEGIADO CONFORMADO - SEDE MESON", dir:"Av. Agustin Gamarra A-8 Urb. Primavera", lat:"-13.5305990", lng:"-71.9736866"},
+{p:"CUSCO", d:"SANTIAGO", o:"2° JUZGADO PENAL COLEGIADO CONFORMADO - SEDE MESON", dir:"Av. Agustin Gamarra A-8 Urb. Primavera", lat:"-13.5305991", lng:"-71.9736867"},
+{p:"CUSCO", d:"SANTIAGO", o:"2° JUZGADO PENAL COLEGIADO CONFORMADO - SEDE MESON", dir:"Av. Agustin Gamarra A-8 Urb. Primavera", lat:"-13.5305992", lng:"-71.9736868"},
+{p:"CUSCO", d:"SANTIAGO", o:"1° JUZG. PENAL UNIPERSONAL VIOL.C.MUJER E IGF-SEDE MESON", dir:"Av. Agustin Gamarra A-8 Urb. Primavera", lat:"-13.5305993", lng:"-71.9736869"},
+{p:"CUSCO", d:"SANTIAGO", o:"2° JUZG. PENAL UNIPERSONAL VIOL.C.MUJER E IGF-SEDE MESON", dir:"Av. Agustin Gamarra A-8 Urb. Primavera", lat:"-13.5305994", lng:"-71.9736870"},
+{p:"CUSCO", d:"SANTIAGO", o:"3° JUZG. PENAL UNIPERSONAL VIOL.C.MUJER E IGF-SEDE MESON", dir:"Av. Agustin Gamarra A-8 Urb. Primavera", lat:"-13.5305995", lng:"-71.9736871"},
+{p:"CUSCO", d:"SANTIAGO", o:"4° JUZG. PENAL UNIPERSONAL VIOL.C.MUJER E IGF-SEDE MESON", dir:"Av. Agustin Gamarra A-8 Urb. Primavera", lat:"-13.5305996", lng:"-71.9736872"},
+{p:"CUSCO", d:"SANTIAGO", o:"1° JUZG. INVEST. PREPARATORIA VIOL.C.MUJER E IGF-SEDE MESON", dir:"Av. Agustin Gamarra A-8 Urb. Primavera", lat:"-13.5305997", lng:"-71.9736873"},
+{p:"CUSCO", d:"SANTIAGO", o:"2° JUZG. INVEST. PREPARATORIA VIOL.C.MUJER E IGF-SEDE MESON", dir:"Av. Agustin Gamarra A-8 Urb. Primavera", lat:"-13.5305998", lng:"-71.9736874"},
+{p:"CUSCO", d:"SANTIAGO", o:"3° JUZG. INVEST. PREPARATORIA VIOL.C.MUJER E IGF-SEDE MESON", dir:"Av. Agustin Gamarra A-8 Urb. Primavera", lat:"-13.5305999", lng:"-71.9736875"},
+{p:"CUSCO", d:"SANTIAGO", o:"JUZG. PENAL COLEGIADO CONFORMADO VIOL.C.MUJ.E IGF-SEDE MESON", dir:"Av. Agustin Gamarra A-8 Urb. Primavera", lat:"-13.5306000", lng:"-71.9736876"},
+{p:"CUSCO", d:"SANTIAGO", o:"JUZG. PENAL COLEGIADO CONFORMADO VIOL.C.MUJ.E IGF-SEDE MESON", dir:"Av. Agustin Gamarra A-8 Urb. Primavera", lat:"-13.5306001", lng:"-71.9736877"},
+{p:"CUSCO", d:"SANTIAGO", o:"JUZG. PENAL COLEGIADO CONFORMADO VIOL.C.MUJ.E IGF-SEDE MESON", dir:"Av. Agustin Gamarra A-8 Urb. Primavera", lat:"-13.5306002", lng:"-71.9736878"},
+{p:"CUSCO", d:"WANCHAQ", o:"1° JUZGADO DE TRABAJO DEL CUSCO", dir:"Calle Primavera N°403 y Av. Confraternidad N°424", lat:"-13.527089", lng:"-71.9692802"},
+{p:"CUSCO", d:"WANCHAQ", o:"2° JUZGADO DE TRABAJO DEL CUSCO", dir:"Calle Primavera N°403 y Av. Confraternidad N°424", lat:"-13.527089", lng:"-71.9692802"},
+{p:"CUSCO", d:"WANCHAQ", o:"3° JUZGADO.DE TRABAJO DEL CUSCO", dir:"Calle Primavera N°403 y Av. Confraternidad N°424", lat:"-13.527089", lng:"-71.9692802"},
+{p:"CUSCO", d:"WANCHAQ", o:"4° JUZGADO.DE TRABAJO DEL CUSCO", dir:"Calle Primavera N°403 y Av. Confraternidad N°424", lat:"-13.527089", lng:"-71.9692802"},
+{p:"CUSCO", d:"WANCHAQ", o:"5º JUZGADO DE TRABAJO DEL CUSCO", dir:"Calle Primavera N°403 y Av. Confraternidad N°424", lat:"-13.527089", lng:"-71.9692802"},
+{p:"CUSCO", d:"WANCHAQ", o:"6° JUZGADO DE TRABAJO DEL CUSCO", dir:"Calle Primavera N°403 y Av. Confraternidad N°424", lat:"-13.527089", lng:"-71.9692802"},
+{p:"CUSCO", d:"WANCHAQ", o:"1°JUZ.DE PAZ LETRADO EN MATERIA LABORAL DEL CUSCO", dir:"Calle Primavera N°403 y Av. Confraternidad N°424", lat:"-13.527089", lng:"-71.9692802"},
+{p:"CUSCO", d:"WANCHAQ", o:"2°JUZ.DE PAZ LETRADO EN MATERIA LABORAL DEL CUSCO", dir:"Calle Primavera N°403 y Av. Confraternidad N°424", lat:"-13.527089", lng:"-71.9692802"},
+{p:"CUSCO", d:"WANCHAQ", o:"1° JUZGADO DE PAZ LETRADO CIVIL", dir:"Calle Primavera N°403 y Av. Confraternidad N°424", lat:"-13.527089", lng:"-71.9692802"},
+{p:"CUSCO", d:"WANCHAQ", o:"3° JUZGADO DE PAZ LETRADO CIVIL", dir:"Calle Primavera N°403 y Av. Confraternidad N°424", lat:"-13.527089", lng:"-71.9692802"},
+{p:"CUSCO", d:"WANCHAQ", o:"2° JUZGADO DE PAZ LETRADO DE FAMILIA", dir:"Calle Primavera N°403 y Av. Confraternidad N°424", lat:"-13.527089", lng:"-71.9692802"},
+{p:"CUSCO", d:"WANCHAQ", o:"JUZGADO CIVIL - SEDE WANCHAQ", dir:"Calle Primavera N°403 y Av. Confraternidad N°424", lat:"-13.527089", lng:"-71.9692802"},
+{p:"CUSCO", d:"WANCHAQ", o:"1° JUZGADO DE PAZ LETRADO - Sede Wanchaq", dir:"Calle Primavera N°403 y Av. Confraternidad N°424", lat:"-13.527089", lng:"-71.9692802"},
+{p:"CUSCO", d:"WANCHAQ", o:"2° JUZGADO DE PAZ LETRADO - Sede Wanchaq", dir:"Calle Primavera N°403 y Av. Confraternidad N°424", lat:"-13.527089", lng:"-71.9692802"},
+{p:"CUSCO", d:"WANCHAQ", o:"1° JUZGADO DE PAZ LETRADO - FALTAS SS - SEDE WANCHAQ", dir:"Calle Primavera N°403 y Av. Confraternidad N°424", lat:"-13.527089", lng:"-71.9692802"},
+{p:"CUSCO", d:"WANCHAQ", o:"2° JUZGADO DE PAZ LETRADO - FALTAS SS - SEDE WANCHAQ", dir:"Calle Primavera N°403 y Av. Confraternidad N°424", lat:"-13.527089", lng:"-71.9692802"},
+{p:"CUSCO", d:"WANCHAQ", o:"4° JUZGADO DE PAZ LETRADO - CUSCO", dir:"Calle Primavera N°403 y Av. Confraternidad N°424", lat:"-13.527089", lng:"-71.9692802"},
+{p:"CUSCO", d:"WANCHAQ", o:"JUZGADO PENAL COLEGIADO CONFORMADO DE FLAGRANCIA", dir:"Av. Manco Capac N°508 / Wanchaq-Cusco", lat:"-13.52385", lng:"-71.9702537"},
+{p:"CUSCO", d:"WANCHAQ", o:"JUZGADO PENAL COLEGIADO CONFORMADO DE FLAGRANCIA", dir:"Av. Manco Capac N°508 / Wanchaq-Cusco", lat:"-13.52386", lng:"-71.9702538"},
+{p:"CUSCO", d:"WANCHAQ", o:"JUZGADO PENAL COLEGIADO CONFORMADO DE FLAGRANCIA", dir:"Av. Manco Capac N°508 / Wanchaq-Cusco", lat:"-13.52387", lng:"-71.9702539"},
+{p:"CUSCO", d:"WANCHAQ", o:"1° JUZGADO UNIPERSONAL TRANSIT. DE FLAGRANCIA - CUSCO", dir:"Av. Manco Capac N°508 / Wanchaq-Cusco", lat:"-13.52388", lng:"-71.9702540"},
+{p:"CUSCO", d:"WANCHAQ", o:"2° JUZGADO UNIPERSONAL TRANSIT. DE FLAGRANCIA - CUSCO", dir:"Av. Manco Capac N°508 / Wanchaq-Cusco", lat:"-13.52389", lng:"-71.9702541"},
+{p:"CUSCO", d:"WANCHAQ", o:"3° JUZGADO UNIPERSONAL TRANSIT. DE FLAGRANCIA - CUSCO", dir:"Av. Manco Capac N°508 / Wanchaq-Cusco", lat:"-13.52390", lng:"-71.9702542"},
+{p:"CUSCO", d:"WANCHAQ", o:"1° JUZG. INVESTIG. PREPARATORIA TRANSIT. FLAGRANCIA - CUSCO", dir:"Av. Manco Capac N°508 / Wanchaq-Cusco", lat:"-13.52391", lng:"-71.9702543"},
+{p:"CUSCO", d:"WANCHAQ", o:"2° JUZG. INVESTIG. PREPARATORIA TRANSIT. FLAGRANCIA - CUSCO", dir:"Av. Manco Capac N°508 / Wanchaq-Cusco", lat:"-13.52392", lng:"-71.9702544"},
+{p:"CUSCO", d:"WANCHAQ", o:"3° JUZG. INVESTIG. PREPARATORIA TRANSIT. FLAGRANCIA - CUSCO", dir:"Av. Manco Capac N°508 / Wanchaq-Cusco", lat:"-13.52393", lng:"-71.9702545"},
+{p:"CUSCO", d:"WANCHAQ", o:"4° JUZG. INVESTIG. PREPARATORIA TRANSIT. FLAGRANCIA - CUSCO", dir:"Av. Manco Capac N°508 / Wanchaq-Cusco", lat:"-13.52394", lng:"-71.9702546"},
+{p:"CUSCO", d:"WANCHAQ", o:"1° JUZGADO FAMILIA DE CUSCO - S.ExMeson Urb. La Florida C-14", dir:"Mz. A LT. 2 Urb. Huascar / Wanchaq-Cusco", lat:"-13.5204586", lng:"-71.9707053"},
+{p:"CUSCO", d:"WANCHAQ", o:"2° JUZGADO FAMILIA DE CUSCO - S.ExMeson Urb. La Florida C-14", dir:"Mz. A LT. 2 Urb. Huascar / Wanchaq-Cusco", lat:"-13.5204586", lng:"-71.9707053"},
+{p:"CUSCO", d:"WANCHAQ", o:"3° JUZGADO FAMILIA DE CUSCO - S.ExMeson Urb. La Florida C-14", dir:"Mz. A LT. 2 Urb. Huascar / Wanchaq-Cusco", lat:"-13.5204586", lng:"-71.9707053"},
+{p:"CUSCO", d:"WANCHAQ", o:"JUZGADO DE FAMILIA TRANSITORIO", dir:"Mz. A LT. 2 Urb. Huascar / Wanchaq-Cusco", lat:"-13.5204586", lng:"-71.9707053"},
+{p:"CUSCO", d:"WANCHAQ", o:"10° JUZGADO DE FAMILIA - SUBESP VIO CONTRA MUJER E INTGR GF", dir:"Jr. Los Kantus C -14 Urb La Florida", lat:"-13.5309598", lng:"-71.965286"},
+{p:"CUSCO", d:"WANCHAQ", o:"11° JUZGADO DE FAMILIA - SUBESP VIO CONTRA MUJER E INTGR GF", dir:"Jr. Los Kantus C -14 Urb La Florida", lat:"-13.5309598", lng:"-71.965286"},
+{p:"CUSCO", d:"WANCHAQ", o:"7° JUZGADO DE FAMILIA - SUBESP VIOL CONTRA MUJER E INTGR GF", dir:"Jr. Los Kantus C -14 Urb La Florida", lat:"-13.5309598", lng:"-71.965286"},
+{p:"CUSCO", d:"WANCHAQ", o:"8° JUZGADO DE FAMILIA - SUBESP VIOL CONTRA MUJER E INTGR GF", dir:"Jr. Los Kantus C -14 Urb La Florida", lat:"-13.5309598", lng:"-71.965286"},
+{p:"CUSCO", d:"WANCHAQ", o:"9° JUZGADO DE FAMILIA - SUBESP VIOL CONTRA MUJER E INTGR GF", dir:"Jr. Los Kantus C -14 Urb La Florida", lat:"-13.5309598", lng:"-71.965286"},
+{p:"CUSCO", d:"WANCHAQ", o:"JUZGADO CIVIL - SEDE SANTIAGO AV. M.B.", dir:"Jr. Los Kantus C -14 Urb La Florida", lat:"-13.5309598", lng:"-71.965286"},
+{p:"CUSCO", d:"WANCHAQ", o:"1° JUZGADO DE PAZ LETRADO - Sede Santiago Av. M.B.", dir:"Jr. Los Kantus C -14 Urb La Florida", lat:"-13.5309598", lng:"-71.965286"},
+{p:"CUSCO", d:"WANCHAQ", o:"2° JUZGADO DE PAZ LETRADO - SEDE SANTIAGO AV. M.B.", dir:"Jr. Los Kantus C -14 Urb La Florida", lat:"-13.5309598", lng:"-71.965286"},
+{p:"CUSCO", d:"SAN JERONIMO", o:"1° JUZGADO DE PAZ LETRADO - Sede San Jerónimo", dir:"Av.Cinco D11-2 Urb. Larapa Grande", lat:"-13.5343784", lng:"-71.9020381"},
+{p:"CUSCO", d:"SAN SEBASTIAN", o:"1° JUZGADO DE PAZ LETRADO - San Sebastían", dir:"Urb. Santa Ursula L-10", lat:"-13.5278356", lng:"-71.9423952"},
+{p:"CUSCO", d:"SAN SEBASTIAN", o:"2° JUZGADO DE PAZ LETRADO - SAN SEBASTÍAN", dir:"Urb. Santa Ursula L-10", lat:"-13.5278301", lng:"-71.9476819"},
+{p:"ESPINAR", d:"YAURI", o:"JUZGADO CIVIL - SEDE ESPINAR", dir:"Jr. Alfonso Ugarte R-17 sublote A", lat:"-14.7917199", lng:"-71.4137042"},
+{p:"ESPINAR", d:"YAURI", o:"JUZGADO DE FAMILIA - SEDE ESPINAR", dir:"Jr. Alfonso Ugarte R-17 sublote A", lat:"-14.7917199", lng:"-71.4137042"},
+{p:"ESPINAR", d:"YAURI", o:"1° JUZ. DE INVES. PREPARATORIA - Sede Espinar", dir:"Jr. Alfonso Ugarte R-17 sublote A", lat:"-14.7917199", lng:"-71.4137042"},
+{p:"ESPINAR", d:"YAURI", o:"1° JUZ. UNIPERSONAL SUPRAPROVINCIAL - Sede Espinar", dir:"Jr. Alfonso Ugarte R-17 sublote A", lat:"-14.7917199", lng:"-71.4137042"},
+{p:"ESPINAR", d:"YAURI", o:"1° JUZGADO DE PAZ LETRADO - Sede Espinar", dir:"Jr. Alfonso Ugarte R-17 sublote A", lat:"-14.7917199", lng:"-71.4137042"},
+{p:"LA CONVENCIÓN", d:"SANTA ANA", o:"SALA PENAL LIQUIDADORA-SANTA ANA", dir:"Jr. Espinar 148 - 150 Santa Ana", lat:"-12.8642841", lng:"-72.6932689"},
+{p:"LA CONVENCIÓN", d:"SANTA ANA", o:"SALA MIXTA DESCENTRALIZADA -SANTA ANA", dir:"Jr. Espinar 148 - 150 Santa Ana", lat:"-12.8642841", lng:"-72.6932689"},
+{p:"LA CONVENCIÓN", d:"SANTA ANA", o:"SALA MIXTA DES. EN ADIC. SALA PENAL DE APELACION- SANTA ANA", dir:"Jr. Espinar 148 - 150 Santa Ana", lat:"-12.8642841", lng:"-72.6932689"},
+{p:"LA CONVENCIÓN", d:"SANTA ANA", o:"JUZGADO CIVIL - SEDE SANTA ANA", dir:"Jr. Espinar 148 - 150 Santa Ana", lat:"-12.8642841", lng:"-72.6932689"},
+{p:"LA CONVENCIÓN", d:"SANTA ANA", o:"1° JUZGADO UNIPERSONAL - Sede Quillabamba", dir:"Jr. Espinar 148 - 150 Santa Ana", lat:"-12.8642841", lng:"-72.6932689"},
+{p:"LA CONVENCIÓN", d:"SANTA ANA", o:"1° JUZ. DE INVES. PREPARATORIA - Sede Quillabamba", dir:"Jr. Espinar 148 - 150 Santa Ana", lat:"-12.8642841", lng:"-72.6932689"},
+{p:"LA CONVENCIÓN", d:"SANTA ANA", o:"1° JUZ ESPECIALIZADO DE FAMILIA - Sede Quillabamba", dir:"Jr. Espinar 148 - 150 Santa Ana", lat:"-12.8642841", lng:"-72.6932689"},
+{p:"LA CONVENCIÓN", d:"SANTA ANA", o:"2° JUZG. PENAL UNIPERSONAL VIOL.C.MUJER -SEDE QUILLABAMBA", dir:"Jr. Espinar 148 - 150 Santa Ana", lat:"-12.8642841", lng:"-72.6932689"},
+{p:"LA CONVENCIÓN", d:"SANTA ANA", o:"JUZG. DE INVESTIGACIÓN PREPARATORIA TRANSITORIO-SANTA ANA", dir:"Jr. Espinar 148 - 150 Santa Ana", lat:"-12.8642841", lng:"-72.6932689"},
+{p:"LA CONVENCIÓN", d:"SANTA ANA", o:"2° JUZG. FAMILIA SUB.VIOLENCIA C.MUJER E IGF- SEDE SANTA ANA", dir:"Jr. Espinar 148 - 150 Santa Ana", lat:"-12.8642841", lng:"-72.6932689"},
+{p:"LA CONVENCIÓN", d:"SANTA ANA", o:"1° JUZGADO DE PAZ LETRADO - Sede Quillabamba", dir:"Jr. Espinar 148 - 150 Santa Ana", lat:"-12.8642841", lng:"-72.6932689"},
+{p:"LA CONVENCIÓN", d:"SANTA ANA", o:"2° JUZGADO DE PAZ LETRADO - Sede Quillabamba", dir:"Jr. Espinar 148 - 150 Santa Ana", lat:"-12.8642841", lng:"-72.6932689"},
+{p:"LA CONVENCIÓN", d:"ECHARATI", o:"JUZGADO DE INVESTIGACIÓN PREPARATORIA", dir:"Jr. José Carlos Mariátegui Mz.1 Lte.7-8 Urb. Urusayhua", lat:"-12.7665214", lng:"-72.5816234"},
+{p:"LA CONVENCIÓN", d:"ECHARATI", o:"1° JUZGADO UNIPERSONAL - Sede de Echarate", dir:"Jr. José Carlos Mariátegui Mz.1 Lte.7-8 Urb. Urusayhua", lat:"-12.7665214", lng:"-72.5816234"},
+{p:"LA CONVENCIÓN", d:"ECHARATI", o:"JUZG. INV. PREP. (AD. FUNC. J. MIXTO) - SEDE ECHARATE", dir:"Jr. José Carlos Mariátegui Mz.1 Lte.7-8 Urb. Urusayhua", lat:"-12.7665214", lng:"-72.5816234"},
+{p:"LA CONVENCIÓN", d:"ECHARATI", o:"1° JUZGADO MIXTO - Sede de Echarate", dir:"Jr. José Carlos Mariátegui Mz.1 Lte.7-8 Urb. Urusayhua", lat:"-12.7665214", lng:"-72.5816234"},
+{p:"LA CONVENCIÓN", d:"ECHARATI", o:"JUZGADO DE PAZ LETRADO- ECHARATE", dir:"Jr. José Carlos Mariátegui Mz.1 Lte.7-8 Urb. Urusayhua", lat:"-12.7665214", lng:"-72.5816234"},
+{p:"LA CONVENCIÓN", d:"VILCABAMBA", o:"JUZG. DE INVEST. PREPAR. (AD. FUNC. JPL) - SEDE VILCABAMBA", dir:"Urb. Asoc. Vecinal Manco Inca Habaspata L-16", lat:"-13.1212276", lng:"-72.9775728"},
+{p:"LA CONVENCIÓN", d:"VILCABAMBA", o:"JUZGADO DE PAZ LETRADO - SEDE VILCABAMBA", dir:"Urb. Asoc. Vecinal Manco Inca Habaspata L-16", lat:"-13.1212276", lng:"-72.9775728"},
+{p:"LA CONVENCIÓN", d:"QUELLOUNO", o:"Juzgado de Paz Letrado - Quellouno", dir:"Calle José Olaya S/N. Ex local de bomberos", lat:"-12.6367555", lng:"-72.5562991"},
+{p:"PARURO", d:"PARURO", o:"1° JUZGADO UNIPERSONAL - Sede Paruro", dir:"Av. Grau F-1 Lote 12 esquina con Calle Arequipa", lat:"-13.7608213", lng:"-71.8493914"},
+{p:"PARURO", d:"PARURO", o:"1° JUZGADO PENAL LIQUIDADOR - Sede Paruro", dir:"Av. Grau F-1 Lote 12 esquina con Calle Arequipa", lat:"-13.7608213", lng:"-71.8493914"},
+{p:"PARURO", d:"PARURO", o:"1° JUZ. DE INVES. PREPARATORIA - Sede Paruro", dir:"Av. Grau F-1 Lote 12 esquina con Calle Arequipa", lat:"-13.7608213", lng:"-71.8493914"},
+{p:"PARURO", d:"PARURO", o:"JUZG. INV. PREP. (AD. FUNC. J. MIXTO) - SEDE PARURO", dir:"Av. Grau F-1 Lote 12 esquina con Calle Arequipa", lat:"-13.7608213", lng:"-71.8493914"},
+{p:"PARURO", d:"PARURO", o:"1° JUZGADO MIXTO - Sede Paruro", dir:"Av. Grau F-1 Lote 12 esquina con Calle Arequipa", lat:"-13.7608213", lng:"-71.8493914"},
+{p:"PARURO", d:"PARURO", o:"1° JUZGADO DE PAZ LETRADO - Sede Paruro", dir:"Av. Grau F-1 Lote 12 esquina con Calle Arequipa", lat:"-13.7608213", lng:"-71.8493914"},
+{p:"PAUCARTAMBO", d:"PAUCARTAMBO", o:"1° JUZGADO UNIPERSONAL - Sede Paucartambo", dir:"Calle Colón esquina con Calle Ayacucho", lat:"-13.3167915", lng:"-71.596558"},
+{p:"PAUCARTAMBO", d:"PAUCARTAMBO", o:"1° JUZGADO PENAL LIQUIDADOR - Sede Paucartambo", dir:"Calle Colón esquina con Calle Ayacucho", lat:"-13.3167915", lng:"-71.596558"},
+{p:"PAUCARTAMBO", d:"PAUCARTAMBO", o:"1° JUZ. DE INVES. PREPARATORIA - Sede Paucartambo", dir:"Calle Colón esquina con Calle Ayacucho", lat:"-13.3167915", lng:"-71.596558"},
+{p:"PAUCARTAMBO", d:"PAUCARTAMBO", o:"JUZG. INV. PREP. (AD. FUNC. J. MIXTO) - SEDE PAUCARTAMBO", dir:"Calle Colón esquina con Calle Ayacucho", lat:"-13.3167915", lng:"-71.596558"},
+{p:"PAUCARTAMBO", d:"PAUCARTAMBO", o:"1° JUZGADO MIXTO - Sede Paucartambo", dir:"Calle Colón esquina con Calle Ayacucho", lat:"-13.3167915", lng:"-71.596558"},
+{p:"PAUCARTAMBO", d:"PAUCARTAMBO", o:"1° JUZGADO DE PAZ LETRADO - Sede Paucartambo", dir:"Calle Colón esquina con Calle Ayacucho", lat:"-13.3167915", lng:"-71.596558"},
+{p:"QUISPICANCHI", d:"URCOS", o:"JUZGADO CIVIL - SEDE QUISPICANCHI", dir:"Casa de la juventud Mariano Melgar S/N ", lat:"-13.6861388", lng:"-71.622206"},
+{p:"QUISPICANCHI", d:"URCOS", o:"JUZGADO PENAL UNIPERSONAL - SEDE QUISPICANCHI", dir:"Casa de la juventud Mariano Melgar S/N ", lat:"-13.6861388", lng:"-71.622206"},
+{p:"QUISPICANCHI", d:"URCOS", o:"1° JUZ. DE INVES. PREPARATORIA - Sede Quispicanchi", dir:"Casa de la juventud Mariano Melgar S/N ", lat:"-13.6861388", lng:"-71.622206"},
+{p:"QUISPICANCHI", d:"URCOS", o:"JUZG. DE FAM. SUBESP. EN VIOLENCIA CONTRA LAS MUJERES E IGF", dir:"Av. Túpac Amaru C-15", lat:"-13.6843669", lng:"-71.6227879"},
+{p:"QUISPICANCHI", d:"URCOS", o:"2° JUZG. INVEST. PREPARAT. VIOL.C.MUJER E IGF-SEDE QUISPICANCHI", dir:"Av. Túpac Amaru C-15", lat:"-13.6843669", lng:"-71.6227879"},
+{p:"QUISPICANCHI", d:"URCOS", o:"JUZGADO PENAL LIQUIDADOR (AD. FUNCIONES JUP) - QUISPICANCHI", dir:"Casa de la juventud Mariano Melgar S/N ", lat:"-13.6861388", lng:"-71.622206"},
+{p:"QUISPICANCHI", d:"URCOS", o:"1° JUZGADO DE PAZ LETRADO - Sede Quispicanchis", dir:"Av. Túpac Amaru C-15", lat:"-13.6843669", lng:"-71.6227879"},
+{p:"QUISPICANCHI", d:"CAMANTI", o:"1° JUZ. DE INVES. PREPARATORIA - Sede Camanti", dir:"Plaza de Armas S/N Quincemil", lat:"-13.2305067", lng:"-70.7545436"},
+{p:"QUISPICANCHI", d:"CAMANTI", o:"1° JUZGADO DE PAZ LETRADO - Sede Camanti", dir:"Plaza de Armas S/N Quincemil", lat:"-13.2305067", lng:"-70.7545436"},
+{p:"QUISPICANCHI", d:"OCONGATE", o:"Juzgado de Paz Letrado - Ocongate", dir:"Calle Lagunillas S/N", lat:"-13.6280973", lng:"-71.3868183"},
+{p:"URUBAMBA", d:"URUBAMBA", o:"1° JUZ. UNIPERSONAL - S. Urubamba", dir:"Jr. Comercio S/N", lat:"-13.305751", lng:"-72.117641"},
+{p:"URUBAMBA", d:"URUBAMBA", o:"JUZGADO PENAL LIQUIDADOR - S. Urubamba", dir:"Jr. Comercio S/N", lat:"-13.305751", lng:"-72.117641"},
+{p:"URUBAMBA", d:"URUBAMBA", o:"1° JUZ. DE INVES. PREPARATORIA - S. Urubamba", dir:"Jr. Comercio S/N", lat:"-13.305751", lng:"-72.117641"},
+{p:"URUBAMBA", d:"URUBAMBA", o:"2° JUZG. INV. PREPARATORIA VIOL.C.MUJER E IGF-SEDE URUBAMBA", dir:"Jiron Palacio N° 820", lat:"-13.304765", lng:"-72.1181907"},
+{p:"URUBAMBA", d:"URUBAMBA", o:"2° JUZG. PENAL UNIPERSONAL VIOL.C.MUJER E IGF-SEDE URUBAMBA", dir:"Jiron Palacio N° 820", lat:"-13.304765", lng:"-72.1181907"},
+{p:"URUBAMBA", d:"URUBAMBA", o:"JUZGADO DE FAMILIA SUBESPEC.VIOL.C.MUJER E IGF-SEDE URUBAMBA", dir:"Jiron Palacio N° 820", lat:"-13.304765", lng:"-72.1181907"},
+{p:"URUBAMBA", d:"URUBAMBA", o:"JUZGADO CIVIL - SEDE URUBAMBA", dir:"Jiron Palacio N° 820", lat:"-13.304765", lng:"-72.1181907"},
+{p:"URUBAMBA", d:"URUBAMBA", o:"1° JUZGADO DE PAZ LETRADO - Sede Urubamba", dir:"Jiron Palacio N° 820", lat:"-13.304765", lng:"-72.1181907"},
+{p:"URUBAMBA", d:"MACHUPICCHU", o:"1° JUZGADO UNIPERSONAL - Sede Machupicchu", dir:"Centro de convenciones de la Muncipalidad", lat:"-13.1548589", lng:"-72.5229792"},
+{p:"URUBAMBA", d:"MACHUPICCHU", o:"1° JUZ. DE INVES. PREPARATORIA - Sede Machupicchu", dir:"Centro de convenciones de la Muncipalidad", lat:"-13.1548589", lng:"-72.5229792"},
+{p:"URUBAMBA", d:"MACHUPICCHU", o:"JUZG. INV. PREP. (AD. FUNC. J. MIXTO) - SEDE MACHU PICCHU", dir:"Centro de convenciones de la Muncipalidad", lat:"-13.1548589", lng:"-72.5229792"},
+{p:"URUBAMBA", d:"MACHUPICCHU", o:"1° JUZGADO MIXTO - Sede Machupicchu", dir:"Centro de convenciones de la Muncipalidad", lat:"-13.1548589", lng:"-72.5229792"},
+{p:"URUBAMBA", d:"MACHUPICCHU", o:"1° JUZGADO DE PAZ LETRADO - Sede Machupicchu", dir:"Centro de convenciones de la Muncipalidad", lat:"-13.1548589", lng:"-72.5229792"},   ];
+
+        let sedes = JSON.parse(localStorage.getItem('sedesCuscoPro')) || datosBase;
+        let adminMode = false;
+        let indexActual = null;
+        let qr = null;
+
+        function renderizar(f = "") {
+            const cont = document.getElementById("contenedorProvincias");
+            cont.innerHTML = "";
+            const grupos = sedes.reduce((a, c) => { a[c.p] = a[c.p] || []; a[c.p].push(c); return a; }, {});
+            
+            Object.keys(grupos).forEach(p => {
+                const items = grupos[p].filter(i => i.o.toLowerCase().includes(f.toLowerCase()) || i.d.toLowerCase().includes(f.toLowerCase()));
+                if(items.length > 0) {
+                    const div = document.createElement("div");
+                    div.className = "mb-1";
+                    div.innerHTML = `
+                        <button onclick="this.nextElementSibling.classList.toggle('active')" class="w-full p-4 bg-slate-900 text-white rounded-xl flex justify-between items-center font-black text-[11px] uppercase tracking-widest shadow-md">
+                            ${p} <span class="bg-blue-600 px-2 py-1 rounded-md">${items.length}</span>
+                        </button>
+                        <div class="lista-juzgados p-2 space-y-2">
+                            ${items.map(i => {
+                                const idx = sedes.indexOf(i);
+                                return `
+                                <div class="p-4 bg-white border border-slate-100 rounded-2xl shadow-sm hover:shadow-md hover:border-blue-300 transition-all flex justify-between items-center group">
+                                    <div class="cursor-pointer flex-1" onclick="seleccionarSede(${idx})">
+                                        <div class="text-[9px] font-black text-blue-500 uppercase tracking-tighter">${i.d}</div>
+                                        <div class="text-[12px] font-bold text-slate-800 leading-tight uppercase">${i.o}</div>
+                                        <div class="text-[10px] text-slate-400 mt-1 italic">📍 ${i.dir}</div>
+                                    </div>
+                                    <div class="flex gap-1">
+                                        <button onclick="seleccionarSede(${idx})" class="p-2 bg-slate-100 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-all text-sm">📍</button>
+                                        ${adminMode ? `<button onclick="abrirAdmin(${idx})" class="p-2 bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-600 hover:text-white transition-all text-sm">✏️</button>` : ''}
+                                    </div>
+                                </div>`;
+                            }).join('')}
+                        </div>`;
+                    cont.appendChild(div);
+                }
+            });
+            document.getElementById("stats").innerText = `${sedes.length} SEDES JUDICIALES ACTIVAS`;
+        }
+
+        function seleccionarSede(idx) {
+            indexActual = idx;
+            const item = sedes[idx];
+            
+            // Mostrar Card y Ocultar Mensaje
+            document.getElementById("mapMsg").style.display = "none";
+            document.getElementById("infoCard").classList.remove("hidden");
+            
+            // Actualizar Textos
+            document.getElementById("infoTitulo").innerText = item.o;
+            document.getElementById("infoUbicacion").innerText = `${item.p} - ${item.d}`;
+            document.getElementById("infoDir").innerText = item.dir;
+
+            // Lógica de Mapa y GPS
+            const coords = (item.lat && item.lng) ? `${item.lat},${item.lng}` : null;
+            const query = coords || encodeURIComponent(`${item.dir}, ${item.d}, Cusco, Peru`);
+            
+            document.getElementById("mapFrame").src = `https://maps.google.com/maps?q=${query}&t=&z=17&ie=UTF8&iwloc=&output=embed`;
+            
+            // Botón Cómo Llegar
+            const mapsUrl = coords ? `https://www.google.com/maps/dir/?api=1&destination=${coords}` : `https://www.google.com/maps/search/?api=1&query=${query}`;
+            document.getElementById("btnComoLlegar").href = mapsUrl;
+
+            // Generar QR
+            document.getElementById("qrcode").innerHTML = "";
+            new QRCode(document.getElementById("qrcode"), {
+                text: mapsUrl,
+                width: 120,
+                height: 120,
+                colorDark : "#0f172a",
+                colorLight : "#ffffff"
+            });
+        }
+
+        function toggleAdmin() {
+            adminMode = !adminMode;
+            document.getElementById("btnAdmin").innerText = adminMode ? "⚙️ CERRAR ADMIN" : "⚙️ ADMIN";
+            document.getElementById("btnAdmin").classList.toggle("bg-amber-600");
+            renderizar();
+        }
+
+        function abrirAdmin(idx) {
+            indexActual = idx;
+            document.getElementById("editO").value = sedes[idx].o;
+            document.getElementById("editDir").value = sedes[idx].dir;
+            document.getElementById("editLat").value = sedes[idx].lat || "";
+            document.getElementById("editLng").value = sedes[idx].lng || "";
+            document.getElementById("modalAdmin").classList.remove("hidden");
+        }
+
+        function guardarAdmin() {
+            sedes[indexActual].o = document.getElementById("editO").value;
+            sedes[indexActual].dir = document.getElementById("editDir").value;
+            sedes[indexActual].lat = document.getElementById("editLat").value;
+            sedes[indexActual].lng = document.getElementById("editLng").value;
+            localStorage.setItem('sedesCuscoPro', JSON.stringify(sedes));
+            cerrarModal();
+            renderizar();
+            seleccionarSede(indexActual);
+        }
+
+        function exportarDatos() {
+            const blob = new Blob([JSON.stringify(sedes, null, 2)], {type: "text/plain"});
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = "DB_CSJ_CUSCO.txt";
+            a.click();
+        }
+
+        function resetearBase() {
+            if(confirm("¿Restablecer todos los cambios?")) {
+                localStorage.removeItem('sedesCuscoPro');
+                location.reload();
+            }
+        }
+
+        function cerrarModal() { document.getElementById("modalAdmin").classList.add("hidden"); }
+        function filtrar() { renderizar(document.getElementById("searchInput").value); }
+
+        renderizar();
+    </script>
+</body>
+</html>
