@@ -2,39 +2,59 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CSJ Cusco - Localizador Pro</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CSJ Cusco - Visor de Sedes Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
         .lista-juzgados { display: none; }
         .lista-juzgados.active { display: block; animation: fadeIn 0.3s ease; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar { width: 4px; }
         .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        #qrcode img { margin: 0 auto; border: 8px solid white; border-radius: 8px; shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);}
+        #qrcode img { margin: 0 auto; border: 4px solid white; border-radius: 8px; }
+        /* Ajuste para que el mapa se vea bien en móviles */
+        @media (max-width: 1024px) {
+            .map-container { height: 300px !important; min-height: 300px !important; }
+            .main-content { flex-direction: column; }
+            .sidebar { width: 100% !important; height: auto !important; max-height: 50vh; }
+        }
     </style>
 </head>
 <body class="bg-slate-100 h-screen flex flex-col overflow-hidden font-sans">
 
-    <header class="bg-indigo-950 text-white p-4 shadow-xl flex justify-between items-center z-50">
-        <div class="flex items-center gap-4">
-            <div class="bg-blue-600 px-3 py-1 rounded font-black text-xl italic shadow-lg">CSJ</div>
-            <div>
-                <h1 class="text-sm font-bold tracking-widest uppercase">Cusco - Localizador Judicial</h1>
-                <p id="stats" class="text-[10px] text-blue-300 font-bold uppercase tracking-tighter"></p>
+    <header class="bg-[#1a1c3d] text-white shadow-xl z-50">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-4">
+                <div class="bg-white p-1 rounded-full shadow-lg">
+                    <img src="https://www.pj.gob.pe/wps/wcm/connect/91404c004909282390f7903808945695/logo_pj.png?MOD=AJPERES&CACHEID=91404c004909282390f7903808945695" 
+                         alt="Logo CSJ Cusco" class="h-12 w-auto">
+                </div>
+                <div>
+                    <h1 class="text-sm md:text-lg font-black tracking-tight leading-none uppercase">Corte Superior de Justicia de Cusco</h1>
+                    <p class="text-[10px] md:text-xs text-blue-300 font-bold tracking-widest uppercase mt-1">Visor de Sedes Judiciales</p>
+                </div>
             </div>
-        </div>
-        
-        <div class="flex gap-2">
-            <button onclick="exportarDatos()" class="hidden md:block bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-xs font-bold transition-all shadow-lg">💾 EXPORTAR</button>
-            <button onclick="toggleAdmin()" id="btnAdmin" class="bg-slate-700 hover:bg-amber-600 text-white px-3 py-2 rounded-lg text-xs font-bold transition-all">⚙️ ADMIN</button>
-            <button onclick="resetearBase()" class="bg-red-900 text-white p-2 rounded-lg text-xs" title="Resetear Datos">🔄</button>
+
+            <div class="flex items-center gap-3 bg-[#252850] px-4 py-2 rounded-2xl border border-white/10">
+                <div class="text-right hidden md:block">
+                    <p class="text-[9px] text-slate-400 font-bold uppercase">Central Telefónica</p>
+                    <a href="tel:084581360" class="text-sm font-black hover:text-blue-400 transition-colors">084 581360</a>
+                </div>
+                <a href="tel:084581360" class="bg-blue-600 p-2 rounded-full hover:scale-110 transition-transform">
+                    📞
+                </a>
+            </div>
         </div>
     </header>
 
-    <main class="flex flex-1 overflow-hidden">
-        <div class="w-full lg:w-4/12 bg-white flex flex-col border-r shadow-2xl">
+    <div class="bg-slate-800 p-2 flex justify-end gap-2 px-4">
+        <button onclick="exportarDatos()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all shadow-lg">💾 EXPORTAR</button>
+        <button onclick="toggleAdmin()" id="btnAdmin" class="bg-slate-600 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all">⚙️ ADMIN</button>
+    </div>
+
+    <main class="flex flex-1 overflow-hidden main-content">
+        <div class="w-full lg:w-4/12 bg-white flex flex-col border-r shadow-2xl sidebar">
             <div class="p-4 bg-slate-50 border-b">
                 <input type="text" id="searchInput" onkeyup="filtrar()" placeholder="🔎 Buscar por provincia, distrito u órgano..." 
                     class="w-full p-3 rounded-xl border-2 border-slate-200 focus:border-blue-500 outline-none transition-all text-sm">
@@ -42,32 +62,33 @@
             <div id="contenedorProvincias" class="flex-1 overflow-y-auto custom-scroll p-4 space-y-3"></div>
         </div>
 
-        <div class="hidden lg:flex flex-1 p-6 bg-slate-200 flex-col gap-6 overflow-y-auto custom-scroll">
-            <div class="w-full h-3/5 bg-white rounded-3xl shadow-2xl overflow-hidden relative min-h-[400px]">
+        <div class="flex-1 p-4 md:p-6 bg-slate-200 flex flex-col gap-4 overflow-y-auto custom-scroll">
+            <div class="w-full h-[350px] md:h-3/5 bg-white rounded-3xl shadow-2xl overflow-hidden relative map-container">
                 <iframe id="mapFrame" class="w-full h-full border-0" src="about:blank"></iframe>
-                <div id="mapMsg" class="absolute inset-0 flex items-center justify-center bg-slate-50 text-slate-400 font-bold">
-                    SELECCIONE UNA SEDE PARA COMENZAR
+                <div id="mapMsg" class="absolute inset-0 flex flex-col items-center justify-center bg-slate-50 text-slate-400 font-bold p-10 text-center">
+                    <span class="text-4xl mb-4">📍</span>
+                    POR FAVOR, SELECCIONE UNA SEDE EN EL MENÚ DE LA IZQUIERDA
                 </div>
             </div>
 
-            <div id="infoCard" class="hidden grid grid-cols-3 gap-6 bg-white p-8 rounded-3xl shadow-2xl border border-white">
-                <div class="col-span-2 space-y-4">
-                    <h2 id="infoTitulo" class="text-2xl font-black text-slate-800 leading-tight uppercase"></h2>
-                    <div class="flex items-center gap-2 text-blue-600 font-bold text-sm">
+            <div id="infoCard" class="hidden flex flex-col md:grid md:grid-cols-3 gap-4 bg-white p-6 rounded-3xl shadow-2xl border border-white">
+                <div class="col-span-2 space-y-3">
+                    <h2 id="infoTitulo" class="text-xl md:text-2xl font-black text-slate-800 leading-tight uppercase"></h2>
+                    <div class="inline-block bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-bold text-[10px] uppercase">
                         <span id="infoUbicacion"></span>
                     </div>
-                    <p id="infoDir" class="text-slate-500 italic text-sm"></p>
+                    <p id="infoDir" class="text-slate-500 italic text-sm border-l-4 border-slate-200 pl-3"></p>
                     
-                    <div class="pt-4 flex gap-4">
-                        <a id="btnComoLlegar" target="_blank" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-4 rounded-2xl font-bold flex items-center gap-2 transition-all shadow-lg hover:scale-105">
-                            🚗 CÓMO LLEGAR (GPS)
+                    <div class="pt-2 flex flex-col sm:flex-row gap-3">
+                        <a id="btnComoLlegar" target="_blank" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-6 py-4 rounded-2xl font-bold flex justify-center items-center gap-2 transition-all shadow-lg hover:scale-105 text-sm">
+                            🚗 IR CON GPS (Google Maps)
                         </a>
                     </div>
                 </div>
                 
                 <div class="flex flex-col items-center justify-center bg-slate-50 rounded-2xl p-4 border border-slate-100 text-center">
-                    <div id="qrcode" class="mb-2 shadow-sm"></div>
-                    <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Escanea para compartir ubicación</p>
+                    <div id="qrcode" class="mb-2 shadow-sm bg-white"></div>
+                    <p class="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">Escanea para abrir ruta<br>en tu celular</p>
                 </div>
             </div>
         </div>
@@ -75,36 +96,36 @@
 
     <div id="modalAdmin" class="fixed inset-0 bg-slate-900/90 backdrop-blur flex items-center justify-center p-4 z-[100] hidden">
         <div class="bg-white w-full max-w-md rounded-3xl p-8 shadow-2xl">
-            <h2 class="text-xl font-black mb-6 text-slate-800 border-b pb-4">Actualizar Sede Judicial</h2>
+            <h2 class="text-xl font-black mb-6 text-slate-800 border-b pb-4">Actualizar Datos de Sede</h2>
             <div class="space-y-4">
-                <div class="group">
+                <div>
                     <label class="text-[10px] font-bold text-slate-400 uppercase">Nombre del Órgano</label>
                     <input type="text" id="editO" class="w-full p-3 border-2 rounded-xl outline-none focus:border-blue-500">
                 </div>
                 <div>
-                    <label class="text-[10px] font-bold text-slate-400 uppercase">Dirección Física</label>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase">Dirección</label>
                     <input type="text" id="editDir" class="w-full p-3 border-2 rounded-xl outline-none focus:border-blue-500">
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="text-[10px] font-bold text-slate-400 uppercase">Latitud</label>
-                        <input type="text" id="editLat" placeholder="-13.52..." class="w-full p-3 border-2 rounded-xl outline-none focus:border-blue-500 text-xs">
+                        <input type="text" id="editLat" class="w-full p-3 border-2 rounded-xl outline-none focus:border-blue-500 text-xs">
                     </div>
                     <div>
                         <label class="text-[10px] font-bold text-slate-400 uppercase">Longitud</label>
-                        <input type="text" id="editLng" placeholder="-71.96..." class="w-full p-3 border-2 rounded-xl outline-none focus:border-blue-500 text-xs">
+                        <input type="text" id="editLng" class="w-full p-3 border-2 rounded-xl outline-none focus:border-blue-500 text-xs">
                     </div>
                 </div>
                 <div class="flex gap-3 pt-6">
-                    <button onclick="guardarAdmin()" class="flex-1 bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-indigo-700 transition-all">GUARDAR CAMBIOS</button>
-                    <button onclick="cerrarModal()" class="flex-1 bg-slate-100 text-slate-600 py-4 rounded-2xl font-bold">DESCARTAR</button>
+                    <button onclick="guardarAdmin()" class="flex-1 bg-blue-600 text-white py-4 rounded-2xl font-bold">GUARDAR</button>
+                    <button onclick="cerrarModal()" class="flex-1 bg-slate-100 py-4 rounded-2xl font-bold">CANCELAR</button>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        // PEGA AQUÍ TUS 196 REGISTROS DE EXCEL
+        // BASE DE DATOS (Mantenemos los que tenías)
         const datosBase = [
          {p:"ACOMAYO", d:"ACOMAYO", o:"1° JUZGADO UNIPERSONAL - Sede Acomayo", dir:"Av. Francisco Bolognesi S/N - Acomayo", lat:"-13.9193725", lng:"-71.6851869"},
 {p:"ACOMAYO", d:"ACOMAYO", o:"1° JUZ. DE INVES. PREPARATORIA - Sede Acomayo", dir:"Av. Francisco Bolognesi S/N - Acomayo", lat:"-13.9193726", lng:"-71.6851870"},
@@ -142,14 +163,14 @@
 {p:"CANCHIS", d:"SICUANI", o:"2° JUZGADO DE PAZ LETRADO - Sede Sicuani", dir:"Av. San Martín S/N - Tablada San Felipe", lat:"-14.263171", lng:"-71.224305"},
 {p:"CANCHIS", d:"SICUANI", o:"JUZGADO DE PAZ LETRADO CAMANTI - ITINERA A SICUANI", dir:"Av. San Martín S/N - Tablada San Felipe", lat:"-14.263171", lng:"-71.224305"},
 {p:"CANCHIS", d:"TINTA", o:"Juzgado de Paz Letrado - Tinta", dir:"Plaza de Armas S/N Tinta", lat:"-14.145283", lng:"-71.4079247"},
-{p:"CHUMBIVILCAS", d:"SANTO TOMAS", o:"Juzgado Mixto / J. Penal Unipersonal / J. Familia / J. Paz Letrado", dir:"Calle 28 de Julio Lote 35 Mz. C-3 Santo Tomas", lat:"-14.452155", lng:"-72.0832777"},
-{p:"CHUMBIVILCAS", d:"SANTO TOMAS", o:"JUZGADO DE FAMILIA - SEDE SANTO TOMÁS", dir:"Calle 28 de Julio Lote 35 Mz. C-3 Santo Tomas", lat:"-14.452155", lng:"-72.0832777"},
-{p:"CHUMBIVILCAS", d:"SANTO TOMAS", o:"JUZGADO PENAL UNIPERSONAL - SEDE SANTO TOMÁS", dir:"Calle 28 de Julio Lote 35 Mz. C-3 Santo Tomas", lat:"-14.452155", lng:"-72.0832777"},
-{p:"CHUMBIVILCAS", d:"SANTO TOMAS", o:"1° JUZGADO PENAL LIQUIDADOR - Sede Santo Tomás", dir:"Calle 28 de Julio Lote 35 Mz. C-3 Santo Tomas", lat:"-14.452155", lng:"-72.0832777"},
-{p:"CHUMBIVILCAS", d:"SANTO TOMAS", o:"JUZGADO DE LA INVESTIGACION PREPARATORIA - SEDE SANTO TOMAS", dir:"Calle 28 de Julio Lote 35 Mz. C-3 Santo Tomas", lat:"-14.452155", lng:"-72.0832777"},
-{p:"CHUMBIVILCAS", d:"SANTO TOMAS", o:"1° JUZGADO MIXTO - Sede Santo Tomás", dir:"Calle 28 de Julio Lote 35 Mz. C-3 Santo Tomas", lat:"-14.452155", lng:"-72.0832777"},
-{p:"CHUMBIVILCAS", d:"SANTO TOMAS", o:"1° JUZGADO DE PAZ LETRADO - Sede Santo Tomás", dir:"Calle 28 de Julio Lote 35 Mz. C-3 Santo Tomas", lat:"-14.452155", lng:"-72.0832777"},
-{p:"CHUMBIVILCAS", d:"LIVITACA", o:"Juzgado de Paz Letrado - Livitaca", dir:"Calle Concepción S/N - Ex local albergue municipal", lat:"-14.313908", lng:"-71.6892967"},
+{p:"CHUMBIVILCAS", d:"SANTO TOMAS", o:"Juzgado Mixto / J. Penal Unipersonal / J. Familia / J. Paz Letrado", dir:"Av. Perú 219 - Santo Tomas", lat:"-14.453966", lng:"-72.0822838"},
+{p:"CHUMBIVILCAS", d:"SANTO TOMAS", o:"JUZGADO DE FAMILIA - SEDE SANTO TOMÁS", dir:"Av. Perú 219 - Santo Tomas", lat:"-14.453966", lng:"-72.081595"},
+{p:"CHUMBIVILCAS", d:"SANTO TOMAS", o:"JUZGADO PENAL UNIPERSONAL - SEDE SANTO TOMÁS", dir:"Av. Perú 219 - Santo Tomas Santo Tomas", lat:"-14.453966", lng:"-72.081595"},
+{p:"CHUMBIVILCAS", d:"SANTO TOMAS", o:"1° JUZGADO PENAL LIQUIDADOR - Sede Santo Tomás", dir:"Av. Perú 219 - Santo Tomas", lat:"-14.453966", lng:"-72.081595"},
+{p:"CHUMBIVILCAS", d:"SANTO TOMAS", o:"JUZGADO DE LA INVESTIGACION PREPARATORIA - SEDE SANTO TOMAS", dir:"Av. Perú 219 - Santo Tomas", lat:"-14.453966", lng:"-72.081595"},
+{p:"CHUMBIVILCAS", d:"SANTO TOMAS", o:"1° JUZGADO MIXTO - Sede Santo Tomás", dir:"Av. Perú 219 - Santo Tomas", lat:"-14.453966", lng:"-72.081595"},
+{p:"CHUMBIVILCAS", d:"SANTO TOMAS", o:"1° JUZGADO DE PAZ LETRADO - Sede Santo Tomás", dir:"Av. Perú 219 - Santo Tomas", lat:"-14.453966", lng:"-72.081595"},
+{p:"CHUMBIVILCAS", d:"LIVITACA", o:"Juzgado de Paz Letrado - Livitaca", dir:"Calle Concepción S/N - Ex local albergue municipal", lat:"-14.313908", lng:"-72.0822838"},
 {p:"CUSCO", d:"CUSCO", o:"2° SALA LABORAL", dir:"Av. El Sol 239", lat:"-13.5187384", lng:"-71.9781067"},
 {p:"CUSCO", d:"CUSCO", o:"1° SALA LABORAL - SEDE CENTRAL", dir:"Av. El Sol 239", lat:"-13.5187385", lng:"-71.9781068"},
 {p:"CUSCO", d:"CUSCO", o:"SALA CIVIL(EX 1°) - SEDE CENTRAL", dir:"Av. El Sol 239", lat:"-13.5187386", lng:"-71.9781069"},
@@ -305,38 +326,36 @@
 {p:"URUBAMBA", d:"MACHUPICCHU", o:"1° JUZGADO MIXTO - Sede Machupicchu", dir:"Centro de convenciones de la Muncipalidad", lat:"-13.1548589", lng:"-72.5229792"},
 {p:"URUBAMBA", d:"MACHUPICCHU", o:"1° JUZGADO DE PAZ LETRADO - Sede Machupicchu", dir:"Centro de convenciones de la Muncipalidad", lat:"-13.1548589", lng:"-72.5229792"},   ];
 
+
         let sedes = JSON.parse(localStorage.getItem('sedesCuscoPro')) || datosBase;
         let adminMode = false;
         let indexActual = null;
-        let qr = null;
 
         function renderizar(f = "") {
             const cont = document.getElementById("contenedorProvincias");
             cont.innerHTML = "";
             const grupos = sedes.reduce((a, c) => { a[c.p] = a[c.p] || []; a[c.p].push(c); return a; }, {});
             
-            Object.keys(grupos).forEach(p => {
+            Object.keys(grupos).sort().forEach(p => {
                 const items = grupos[p].filter(i => i.o.toLowerCase().includes(f.toLowerCase()) || i.d.toLowerCase().includes(f.toLowerCase()));
                 if(items.length > 0) {
                     const div = document.createElement("div");
-                    div.className = "mb-1";
                     div.innerHTML = `
-                        <button onclick="this.nextElementSibling.classList.toggle('active')" class="w-full p-4 bg-slate-900 text-white rounded-xl flex justify-between items-center font-black text-[11px] uppercase tracking-widest shadow-md">
+                        <button onclick="this.nextElementSibling.classList.toggle('active')" class="w-full p-4 bg-[#1a1c3d] text-white rounded-xl flex justify-between items-center font-black text-[11px] uppercase tracking-widest shadow-md">
                             ${p} <span class="bg-blue-600 px-2 py-1 rounded-md">${items.length}</span>
                         </button>
                         <div class="lista-juzgados p-2 space-y-2">
                             ${items.map(i => {
                                 const idx = sedes.indexOf(i);
                                 return `
-                                <div class="p-4 bg-white border border-slate-100 rounded-2xl shadow-sm hover:shadow-md hover:border-blue-300 transition-all flex justify-between items-center group">
+                                <div class="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm hover:border-blue-400 transition-all flex justify-between items-center">
                                     <div class="cursor-pointer flex-1" onclick="seleccionarSede(${idx})">
-                                        <div class="text-[9px] font-black text-blue-500 uppercase tracking-tighter">${i.d}</div>
+                                        <div class="text-[9px] font-black text-blue-600 uppercase mb-1">${i.d}</div>
                                         <div class="text-[12px] font-bold text-slate-800 leading-tight uppercase">${i.o}</div>
-                                        <div class="text-[10px] text-slate-400 mt-1 italic">📍 ${i.dir}</div>
                                     </div>
-                                    <div class="flex gap-1">
-                                        <button onclick="seleccionarSede(${idx})" class="p-2 bg-slate-100 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-all text-sm">📍</button>
-                                        ${adminMode ? `<button onclick="abrirAdmin(${idx})" class="p-2 bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-600 hover:text-white transition-all text-sm">✏️</button>` : ''}
+                                    <div class="flex gap-1 ml-2">
+                                        <button onclick="seleccionarSede(${idx})" class="p-2 bg-blue-50 text-blue-600 rounded-lg">📍</button>
+                                        ${adminMode ? `<button onclick="abrirAdmin(${idx})" class="p-2 bg-amber-50 text-amber-600 rounded-lg">✏️</button>` : ''}
                                     </div>
                                 </div>`;
                             }).join('')}
@@ -344,46 +363,35 @@
                     cont.appendChild(div);
                 }
             });
-            document.getElementById("stats").innerText = `${sedes.length} SEDES JUDICIALES ACTIVAS`;
         }
 
         function seleccionarSede(idx) {
             indexActual = idx;
             const item = sedes[idx];
-            
-            // Mostrar Card y Ocultar Mensaje
             document.getElementById("mapMsg").style.display = "none";
             document.getElementById("infoCard").classList.remove("hidden");
-            
-            // Actualizar Textos
             document.getElementById("infoTitulo").innerText = item.o;
             document.getElementById("infoUbicacion").innerText = `${item.p} - ${item.d}`;
             document.getElementById("infoDir").innerText = item.dir;
 
-            // Lógica de Mapa y GPS
             const coords = (item.lat && item.lng) ? `${item.lat},${item.lng}` : null;
             const query = coords || encodeURIComponent(`${item.dir}, ${item.d}, Cusco, Peru`);
-            
             document.getElementById("mapFrame").src = `https://maps.google.com/maps?q=${query}&t=&z=17&ie=UTF8&iwloc=&output=embed`;
             
-            // Botón Cómo Llegar
             const mapsUrl = coords ? `https://www.google.com/maps/dir/?api=1&destination=${coords}` : `https://www.google.com/maps/search/?api=1&query=${query}`;
             document.getElementById("btnComoLlegar").href = mapsUrl;
 
-            // Generar QR
             document.getElementById("qrcode").innerHTML = "";
-            new QRCode(document.getElementById("qrcode"), {
-                text: mapsUrl,
-                width: 120,
-                height: 120,
-                colorDark : "#0f172a",
-                colorLight : "#ffffff"
-            });
+            new QRCode(document.getElementById("qrcode"), { text: mapsUrl, width: 100, height: 100 });
+
+            // En móviles, hacer scroll hacia el mapa automáticamente al seleccionar
+            if(window.innerWidth < 1024) {
+                document.querySelector('.map-container').scrollIntoView({ behavior: 'smooth' });
+            }
         }
 
         function toggleAdmin() {
             adminMode = !adminMode;
-            document.getElementById("btnAdmin").innerText = adminMode ? "⚙️ CERRAR ADMIN" : "⚙️ ADMIN";
             document.getElementById("btnAdmin").classList.toggle("bg-amber-600");
             renderizar();
         }
@@ -414,13 +422,6 @@
             a.href = URL.createObjectURL(blob);
             a.download = "DB_CSJ_CUSCO.txt";
             a.click();
-        }
-
-        function resetearBase() {
-            if(confirm("¿Restablecer todos los cambios?")) {
-                localStorage.removeItem('sedesCuscoPro');
-                location.reload();
-            }
         }
 
         function cerrarModal() { document.getElementById("modalAdmin").classList.add("hidden"); }
